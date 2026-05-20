@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: raw_data
     description: Raw data ingested from the source CSV. Immutable landing zone — no transformations applied here.
-    schema: bronze
+    schema: public_seeds
     tables:
       - name: raw_transactions
         description: >
@@ -27,15 +27,13 @@ sources:
             tests:
               - not_null
               - accepted_values:
-                  arguments:
-                    values: ['EUR']
+                  values: ['EUR']
           - name: charged_party
             description: Insurance partner being charged
             tests:
               - not_null
               - accepted_values:
-                  arguments:
-                    values: ['berlinre', 'dronant', 'getland', 'liadigital']
+                  values: ['berlinre', 'dronant', 'getland', 'liadigital']
           - name: status
             description: >
               Transaction status from the billing system.
@@ -43,5 +41,4 @@ sources:
             tests:
               - not_null
               - accepted_values:
-                  arguments:
-                    values: ['processed', 'process', 'failed', 'refunded']
+                  values: ['processed', 'process', 'failed', 'refunded']
