@@ -1,0 +1,59 @@
+version: 2
+
+models:
+  - name: silver_transactions
+    description: >
+      Cleaned and typed transaction records. All downstream Gold models read from here.
+
+      Key changes from Bronze:
+        - created_at parsed from VARCHAR to TIMESTAMP, DATE, and YYYY-MM month bucket
+        - premium_amount cast to DOUBLE
+        - status 'process' normalized to 'processed' (audit flag _status_normalized)
+        - Data quality flags added (_dq_flags, _is_clean)
+
+    columns:
+      - name: transaction_id
+        description: Unique transaction identifier
+        tests:
+          - not_null
+          - unique:
+              config:
+                severity: warn
+
+      - name: created_at_ts
+        description: Parsed transaction timestamp
+        tests:
+          - not_null:
+              config:
+                severity: warn
+
+      - name: transaction_month
+        description: YYYY-MM bucket for monthly aggregations (e.g., '2025-06')
+
+      - name: premium_amount
+        description: Premium in EUR (NULL if source value was not parseable as a number)
+
+      - name: party
+        description: Insurance partner (berlinre, dronant, getland, liadigital)
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['berlinre', 'dronant', 'getland', 'liadigital']
+
+      - name: status
+        description: Normalized status. 'process' from source is mapped to 'processed'.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['processed', 'failed', 'refunded']
+
+      - name: _status_normalized
+        description: TRUE for rows where status was changed from 'process' to 'processed'
+
+      - name: _dq_flags
+        description: Comma-separated list of data quality issues. Empty string means clean.
+
+      - name: _is_clean
+        description: TRUE if the row passes all data quality checks

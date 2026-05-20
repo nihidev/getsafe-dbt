@@ -1,0 +1,131 @@
+version: 2
+
+models:
+  - name: gold_fct_monthly_premiums
+    description: >
+      Monthly premium data mart for Finance reporting. Grain: one row per (party, month).
+      This is the primary deliverable for Part I of the case study.
+
+    columns:
+      - name: party
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['berlinre', 'dronant', 'getland', 'liadigital']
+
+      - name: month
+        description: YYYY-MM format (e.g., '2025-06')
+        tests:
+          - not_null
+
+      - name: premium
+        description: Gross written premium in EUR — only processed transactions with clean data
+        tests:
+          - not_null
+
+      - name: written_premium
+        description: Same as premium — gross written premium, alias kept for clarity in joins
+        tests:
+          - not_null
+
+      - name: refunded_premium
+        description: Sum of refunded transaction amounts in the same party/month
+        tests:
+          - not_null
+
+      - name: net_premium
+        description: >
+          written_premium minus refunded_premium.
+          Note: netting refunds widens the gap vs the accounting benchmark, confirming
+          Accounting reports gross written premium. Use written_premium for reconciliation.
+        tests:
+          - not_null
+
+      - name: earned_premium
+        description: >
+          Prorated premium based on days remaining in month at transaction date.
+          Approximation — production version should use actual policy inception dates.
+        tests:
+          - not_null
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['party', 'month']
+
+  - name: gold_fct_accounting_reconciliation
+    description: >
+      Finance vs Accounting monthly comparison. Grain: one row per (party, month).
+
+    columns:
+      - name: party
+        tests:
+          - not_null
+
+      - name: month
+        tests:
+          - not_null
+
+      - name: accounting_premium
+        description: Premium figure from the Accounting team (source of truth)
+        tests:
+          - not_null
+
+      - name: finance_premium
+        description: Premium derived from transaction data
+        tests:
+          - not_null
+
+      - name: delta
+        description: finance_premium minus accounting_premium
+
+      - name: delta_pct
+        description: Absolute delta as a percentage of accounting_premium
+
+      - name: reconciliation_status
+        description: MATCH, NEAR_MATCH, or DISCREPANCY
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['MATCH', 'NEAR_MATCH', 'DISCREPANCY']
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['party', 'month']
+
+  - name: gold_fct_customer_activity_daily
+    description: >
+      KPI mart for Part II. One row per (user_id, activity_date).
+      Uses sample data to illustrate the date-spine approach — swap the FROM clause
+      for ref('silver_customers') when connecting to real data.
+
+    columns:
+      - name: activity_date
+        description: Calendar date
+        tests:
+          - not_null
+
+      - name: user_id
+        description: Customer identifier
+        tests:
+          - not_null
+
+      - name: product_group
+        description: Insurance product category
+        tests:
+          - not_null
+
+      - name: daily_premium
+        description: monthly_premium / days_in_month. Sums to monthly_premium over any full month.
+        tests:
+          - not_null
+
+      - name: activity_month
+        description: YYYY-MM bucket for partition pruning
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['user_id', 'activity_date']

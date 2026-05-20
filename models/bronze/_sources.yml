@@ -1,0 +1,47 @@
+version: 2
+
+sources:
+  - name: raw_data
+    description: Raw data ingested from the source CSV. Immutable landing zone — no transformations applied here.
+    schema: bronze
+    tables:
+      - name: raw_transactions
+        description: >
+          Premium transaction records from the billing system.
+          Each row is one charge event. Source: "Data for Analytics Case Study - Raw Transaction Data.csv"
+        columns:
+          - name: transaction_id
+            description: Unique transaction identifier
+            tests:
+              - not_null
+          - name: created_at
+            description: Transaction timestamp as raw string (format M/D/YYYY H:MM:SS)
+            tests:
+              - not_null
+          - name: premium_amount
+            description: Premium amount, stored as VARCHAR to preserve the raw source value
+            tests:
+              - not_null
+          - name: premium_currency
+            description: ISO currency code (EUR throughout)
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['EUR']
+          - name: charged_party
+            description: Insurance partner being charged
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['berlinre', 'dronant', 'getland', 'liadigital']
+          - name: status
+            description: >
+              Transaction status from the billing system.
+              'process' is a variant of 'processed' — normalized in the Silver layer.
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['processed', 'process', 'failed', 'refunded']
