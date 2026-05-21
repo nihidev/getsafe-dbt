@@ -2,9 +2,6 @@ version: 2
 
 models:
   - name: gold_fct_premium_concentration_hhi
-    config:
-      materialized: table
-      schema: public_gold
     description: >
       Monthly premium concentration risk model using the Herfindahl-Hirschman Index (HHI).
       Grain: one row per reinsurance party × month. Each row carries both the party-level
@@ -55,7 +52,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [competitive, moderately_concentrated, highly_concentrated]
+              arguments:
+                values: [competitive, moderately_concentrated, highly_concentrated]
 
       - name: dominant_party_flag
         description: TRUE if any single party holds more than 40% market share that month.

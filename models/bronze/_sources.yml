@@ -27,13 +27,15 @@ sources:
             tests:
               - not_null
               - accepted_values:
-                  values: ['EUR']
+                  arguments:
+                    values: ['EUR']
           - name: charged_party
             description: Insurance partner being charged
             tests:
               - not_null
               - accepted_values:
-                  values: ['berlinre', 'dronant', 'getland', 'liadigital']
+                  arguments:
+                    values: ['berlinre', 'dronant', 'getland', 'liadigital']
           - name: status
             description: >
               Transaction status from the billing system.
@@ -41,4 +43,5 @@ sources:
             tests:
               - not_null
               - accepted_values:
-                  values: ['processed', 'process', 'failed', 'refunded']
+                  arguments:
+                    values: ['processed', 'process', 'failed', 'refunded']

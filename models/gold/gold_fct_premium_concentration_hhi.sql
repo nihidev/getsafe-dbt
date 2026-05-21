@@ -1,4 +1,4 @@
-{{ config(materialized='table', schema='public_gold', tags=['gold']) }}
+{{ config(materialized='table', tags=['gold']) }}
 
 WITH monthly_premiums AS (
     SELECT
