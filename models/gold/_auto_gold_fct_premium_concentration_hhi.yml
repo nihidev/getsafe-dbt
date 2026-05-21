@@ -2,21 +2,68 @@ version: 2
 
 models:
   - name: gold_fct_premium_concentration_hhi
-  config: 
-    materialized: table
-    schema: public_gold
-  description: >
-    This model calculates the monthly premium concentration risk using the Herfindahl-Hirschman Index (HHI) for each reinsurance party. The HHI is a measure of market concentration and is used to determine the level of competition among reinsurance parties based on their share of total net premiums.
-  columns:
-    - name: month
-      description: "The month for which the premium concentration risk is calculated."
-      tests:
-        - not_null
-    - name: hhi
-      description: "The Herfindahl-Hirschman Index (HHI) value representing the concentration of premiums among reinsurance parties for the given month."
-      tests:
-        - not_null
-    - name: _created_at
-      description: "The timestamp indicating when the record was created."
-      tests:
-        - not_null
+    config:
+      materialized: table
+      schema: public_gold
+    description: >
+      Monthly premium concentration risk model using the Herfindahl-Hirschman Index (HHI).
+      Grain: one row per reinsurance party × month. Each row carries both the party-level
+      market share and the month-level HHI score, enabling analysis of concentration trends
+      over time. HHI < 1500 = competitive, 1500-2500 = moderately concentrated, > 2500 = highly concentrated.
+
+    columns:
+      - name: party
+        description: Reinsurance party name (berlinre, dronant, getland, liadigital).
+        tests:
+          - not_null
+
+      - name: month
+        description: Calendar month in YYYY-MM format.
+        tests:
+          - not_null
+
+      - name: net_premium
+        description: Party net premium for the month (written minus refunds), in EUR.
+        tests:
+          - not_null
+
+      - name: written_premium
+        description: Gross written premium before refunds, in EUR.
+
+      - name: total_net_premium
+        description: Total net premium across all parties for the month, in EUR.
+        tests:
+          - not_null
+
+      - name: market_share_pct
+        description: Party share of total monthly net premium, as a percentage (0-100).
+        tests:
+          - not_null
+
+      - name: hhi_score
+        description: >
+          Herfindahl-Hirschman Index for the month (0-10000).
+          Computed as SUM(market_share squared) x 10000 across all parties.
+        tests:
+          - not_null
+
+      - name: active_parties
+        description: Number of distinct parties with net premium in the month.
+
+      - name: concentration_level
+        description: Categorical HHI classification for the month.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [competitive, moderately_concentrated, highly_concentrated]
+
+      - name: dominant_party_flag
+        description: TRUE if any single party holds more than 40% market share that month.
+
+      - name: transaction_count
+        description: Number of transactions for this party in the month.
+
+      - name: _created_at
+        description: Timestamp when this row was materialised.
+        tests:
+          - not_null
