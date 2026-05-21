@@ -71,6 +71,12 @@ class MetabaseClient:
             payload["collection_id"] = collection_id
         return self._post("/api/card", payload)
 
+    def update_question(self, card_id: int, sql: str, display: str | None = None) -> dict:
+        payload: dict = {"dataset_query": {"type": "native", "native": {"query": sql}}}
+        if display:
+            payload["display"] = display
+        return self._put(f"/api/card/{card_id}", payload)
+
     def list_questions(self) -> list:
         data = self._get("/api/card")
         return data if isinstance(data, list) else data.get("data", [])

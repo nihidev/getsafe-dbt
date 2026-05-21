@@ -11,11 +11,20 @@ LABEL_AUTO_DONE = "bce129d2-d698-4ea0-a384-5192a3ea7481"
 
 
 def _default_viz(model_name: str) -> tuple[str, str]:
-    """Pick a sensible default chart SQL + display type for known model patterns."""
+    """
+    Pick a sensible default chart SQL + display type for known model patterns.
+
+    Key rule: when the gold model has a party×month grain but a metric is
+    constant across parties for the same month (e.g. hhi_score), we must
+    deduplicate to month-grain before Metabase sees it — otherwise Metabase
+    will SUM the repeated metric values, inflating the chart by the party count.
+    """
     if "hhi" in model_name or "concentration" in model_name:
+        # Deduplicate to month-grain: hhi_score is the same for all parties in a month
         return (
-            f"SELECT month, hhi_score, concentration_level, active_parties\n"
-            f"FROM {GOLD}.{model_name}\nORDER BY month",
+            f"SELECT DISTINCT month, hhi_score, concentration_level, active_parties\n"
+            f"FROM {GOLD}.{model_name}\n"
+            f"ORDER BY month",
             "line",
         )
     if "retention" in model_name or "cohort" in model_name:
@@ -25,13 +34,16 @@ def _default_viz(model_name: str) -> tuple[str, str]:
         )
     if "premium" in model_name and "party" in model_name:
         return (
-            f"SELECT month, party, market_share_pct FROM {GOLD}.{model_name} ORDER BY month, party",
+            f"SELECT month, party, market_share_pct\n"
+            f"FROM {GOLD}.{model_name}\n"
+            f"ORDER BY month, market_share_pct DESC",
             "bar",
         )
     if "clv" in model_name or "lifetime" in model_name:
         return (
             f"SELECT user_id, product_group, clv_tier, lifetime_value_eur\n"
-            f"FROM {GOLD}.{model_name} ORDER BY lifetime_value_eur DESC",
+            f"FROM {GOLD}.{model_name}\n"
+            f"ORDER BY lifetime_value_eur DESC",
             "bar",
         )
     return (

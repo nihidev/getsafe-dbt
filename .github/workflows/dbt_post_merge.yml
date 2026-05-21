@@ -31,11 +31,8 @@ jobs:
         run: |
           # Branch format: auto/get-3-gold_fct_premium_concentration_hhi
           BRANCH="${{ github.event.pull_request.head.ref }}"
-          # Remove "auto/" prefix → "get-3-gold_fct_..."
           WITHOUT_PREFIX="${BRANCH#auto/}"
-          # Ticket = first two dash-separated tokens (e.g. "get-3" → "GET-3")
           TICKET=$(echo "$WITHOUT_PREFIX" | grep -oP '^[a-z]+-\d+' | tr '[:lower:]' '[:upper:]')
-          # Model = everything after "get-3-"
           MODEL=$(echo "$WITHOUT_PREFIX" | sed "s/^[a-z]\+-[0-9]\+-//")
           echo "ticket=$TICKET" >> $GITHUB_OUTPUT
           echo "model=$MODEL"   >> $GITHUB_OUTPUT
@@ -45,36 +42,34 @@ jobs:
         run: |
           mkdir -p ~/.dbt
           cat > ~/.dbt/profiles.yml << 'EOF'
-          getsafe_analytics:
-            target: supabase
-            outputs:
-              supabase:
-                type: postgres
-                host: ${{ secrets.SUPABASE_HOST }}
-                user: ${{ secrets.SUPABASE_USER }}
-                password: ${{ secrets.SUPABASE_PASSWORD }}
-                port: 5432
-                dbname: postgres
-                schema: public
-                threads: 4
-                connect_timeout: 10
-                sslmode: require
-          EOF
+getsafe_analytics:
+  target: supabase
+  outputs:
+    supabase:
+      type: postgres
+      host: ${{ secrets.SUPABASE_HOST }}
+      user: ${{ secrets.SUPABASE_USER }}
+      password: ${{ secrets.SUPABASE_PASSWORD }}
+      port: 5432
+      dbname: postgres
+      schema: public
+      threads: 4
+      connect_timeout: 10
+      sslmode: require
+EOF
 
       - name: Install dbt packages
         run: dbt deps
 
       - name: dbt run
         id: dbt_run
-        run: |
-          dbt run --select ${{ steps.meta.outputs.model }} --target supabase
+        run: dbt run --select ${{ steps.meta.outputs.model }} --target supabase
         continue-on-error: true
 
       - name: dbt test
         id: dbt_test
         if: steps.dbt_run.outcome == 'success'
-        run: |
-          dbt test --select ${{ steps.meta.outputs.model }} --target supabase
+        run: dbt test --select ${{ steps.meta.outputs.model }} --target supabase
         continue-on-error: true
 
       - name: Notify Linear — success
@@ -84,7 +79,6 @@ jobs:
           TICKET: ${{ steps.meta.outputs.ticket }}
           MODEL: ${{ steps.meta.outputs.model }}
         run: |
-          # Look up the issue ID from the identifier
           ISSUE_ID=$(curl -s -X POST https://api.linear.app/graphql \
             -H "Authorization: $LINEAR_API_KEY" \
             -H "Content-Type: application/json" \
@@ -94,7 +88,7 @@ jobs:
           curl -s -X POST https://api.linear.app/graphql \
             -H "Authorization: $LINEAR_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { commentCreate(input: { issueId: \\\"$ISSUE_ID\\\", body: \\\"## ✅ dbt Run Complete\\\\n\\\\n\`$MODEL\` is now materialized in Supabase.\\\\n\\\\ndbt run ✅ · dbt test ✅\\\\n\\\\nThe agent will create the Metabase dashboard on next polling cycle.\\\\n\\\\n> 🤖 GitHub Actions\\\" }) { success } }\"}"
+            -d "{\"query\":\"mutation { commentCreate(input: { issueId: \\\"$ISSUE_ID\\\", body: \\\"## ✅ dbt Run Complete\\\\n\\\\n\`$MODEL\` is now materialized in Supabase.\\\\n\\\\ndbt run ✅ · dbt test ✅\\\\n\\\\nThe agent will create the Metabase dashboard on the next /check-prs call.\\\\n\\\\n> 🤖 GitHub Actions\\\" }) { success } }\"}"
 
       - name: Notify Linear — failure
         if: steps.dbt_run.outcome == 'failure' || steps.dbt_test.outcome == 'failure'

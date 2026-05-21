@@ -1,9 +1,14 @@
 import json
+import logging
 import os
 
 from openai import OpenAI
 
+logger = logging.getLogger(__name__)
+
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+VALID_INTENTS = {"dashboard", "data_quality", "new_model", "explore"}
 
 _SYSTEM = """You are an intent classifier for a data analytics automation system.
 
@@ -41,4 +46,12 @@ def classify(title: str, description: str = "") -> dict:
         response_format={"type": "json_object"},
         temperature=0,
     )
-    return json.loads(resp.choices[0].message.content)
+    result = json.loads(resp.choices[0].message.content)
+
+    if result.get("intent") not in VALID_INTENTS:
+        logger.warning(
+            f"Classifier returned invalid intent '{result.get('intent')}' — defaulting to 'explore'"
+        )
+        result["intent"] = "explore"
+
+    return result

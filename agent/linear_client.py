@@ -84,8 +84,10 @@ class LinearClient:
         try:
             data = self._query(query, {"id": identifier})
             return data["issue"]
-        except Exception:
+        except RuntimeError:
+            # GraphQL error — ticket not found
             return None
+        # Network / HTTP errors propagate so callers see the real failure
 
     # ── state transitions ─────────────────────────────────────────────────────
 

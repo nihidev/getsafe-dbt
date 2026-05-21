@@ -4,13 +4,13 @@ import os
 GOLD = os.environ.get("GOLD_SCHEMA", "public_gold")
 
 _TABLE_MAP = {
-    "monthly": "gold_fct_monthly_premiums",
-    "premium": "gold_fct_monthly_premiums",
+    "monthly":        "gold_fct_monthly_premiums",
+    "premium":        "gold_fct_monthly_premiums",
     "reconciliation": "gold_fct_accounting_reconciliation",
-    "accounting": "gold_fct_accounting_reconciliation",
-    "customer": "gold_fct_customer_activity_daily",
-    "daily": "gold_fct_customer_activity_daily",
-    "activity": "gold_fct_customer_activity_daily",
+    "accounting":     "gold_fct_accounting_reconciliation",
+    "customer":       "gold_fct_customer_activity_daily",
+    "daily":          "gold_fct_customer_activity_daily",
+    "activity":       "gold_fct_customer_activity_daily",
 }
 
 
@@ -49,7 +49,7 @@ def _parse_results(raw: dict) -> tuple[list, list]:
             if dupes:
                 failed.append(f"❌ **uniqueness**: {dupes} duplicate grain rows")
             else:
-                passed.append("✅ **uniqueness**: grain (party, month) is unique")
+                passed.append("✅ **uniqueness**: grain is unique")
 
         elif "invalid" in check:
             if any(row.values()):
@@ -72,10 +72,10 @@ def _parse_results(raw: dict) -> tuple[list, list]:
 
 
 def run(intent: dict, db) -> dict:
-    from main import _check_data_quality  # imported here to avoid circular dep at module load
+    from checks import check_data_quality  # local import avoids any potential circular dep
 
     table = _resolve_table(intent.get("table"))
-    raw = json.loads(_check_data_quality(table))
+    raw = json.loads(check_data_quality(table, db, GOLD))
     passed, failed = _parse_results(raw)
 
     return {

@@ -1,0 +1,50 @@
+# Metabase is already running at localhost:12345 — not managed here.
+# The agent reaches it via host.docker.internal:12345 from inside Docker.
+
+services:
+
+  # ── Agent (FastAPI + OpenAI) ─────────────────────────────────────────────────
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: getsafe_agent
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      METABASE_URL: http://host.docker.internal:12345
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # needed on Linux; no-op on Mac
+    networks:
+      - getsafe_net
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── Chat UI (Streamlit) ──────────────────────────────────────────────────────
+  chat_ui:
+    build:
+      context: ./chat_ui
+      dockerfile: Dockerfile
+    container_name: getsafe_chat_ui
+    ports:
+      - "8501:8501"
+    env_file: .env
+    environment:
+      AGENT_URL: http://agent:8000
+      METABASE_PUBLIC_URL: http://localhost:12345
+    networks:
+      - getsafe_net
+    depends_on:
+      agent:
+        condition: service_healthy
+    restart: on-failure
+
+networks:
+  getsafe_net:
+    driver: bridge

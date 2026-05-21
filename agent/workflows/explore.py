@@ -3,12 +3,9 @@ import os
 
 from openai import OpenAI
 
-GOLD = os.environ.get("GOLD_SCHEMA", "public_gold")
+from schemas import EXPLORE_SCHEMA as _SCHEMA
 
-_SCHEMA = f"""Gold layer tables (schema: {GOLD}):
-- gold_fct_monthly_premiums       — party, month, written_premium, net_premium, refunded_premium, earned_premium, transaction_count
-- gold_fct_accounting_reconciliation — party, month, accounting_premium, finance_premium, delta, delta_pct, reconciliation_status
-- gold_fct_customer_activity_daily  — user_id, activity_date, product_group, daily_premium, monthly_premium, churned_at, days_since_acquisition"""
+GOLD = os.environ.get("GOLD_SCHEMA", "public_gold")
 
 
 def _gen_sql(question: str, openai_client: OpenAI) -> str:

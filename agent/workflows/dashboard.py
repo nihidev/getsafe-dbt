@@ -1,18 +1,38 @@
 import os
+import re
 
 GOLD = os.environ.get("GOLD_SCHEMA", "public_gold")
 METABASE_PUBLIC_URL = os.environ.get("METABASE_PUBLIC_URL", "http://localhost:12345")
 
+# Whitelist of allowed filter keys per table
+_ALLOWED_FILTERS: dict[str, set] = {
+    "gold_fct_monthly_premiums":          {"party", "month"},
+    "gold_fct_accounting_reconciliation": {"party", "month", "reconciliation_status"},
+    "gold_fct_customer_activity_daily":   {"user_id", "product_group", "activity_date"},
+}
+
+# Only alphanumeric, hyphens, underscores — no quotes, semicolons, or spaces
+_SAFE_VALUE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+
+
+def _safe_where(table: str, filters) -> str:
+    if not filters:
+        return ""
+    allowed = _ALLOWED_FILTERS.get(table, set())
+    clauses = []
+    for k, v in filters.items():
+        if k not in allowed:
+            continue
+        v = str(v)
+        if not _SAFE_VALUE.match(v):
+            continue
+        clauses.append(f"{k} = '{v}'")
+    return "WHERE " + " AND ".join(clauses) if clauses else ""
+
 
 def _build_sql(intent: dict) -> str:
     table = intent.get("table") or "gold_fct_monthly_premiums"
-    filters = intent.get("filters") or {}
-
-    where = ""
-    if filters:
-        clauses = [f"{k} = '{v}'" for k, v in filters.items() if v]
-        if clauses:
-            where = "WHERE " + " AND ".join(clauses)
+    where = _safe_where(table, intent.get("filters"))
 
     if "monthly_premiums" in table:
         return f"""

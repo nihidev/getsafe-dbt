@@ -1,4 +1,9 @@
-import asyncio
+"""
+Ticket processor and PR tracker.
+
+Polling has been removed — tickets are now triggered by N8N webhook → /process-ticket.
+PR merge detection is triggered by N8N/GitHub webhook → /check-prs.
+"""
 import json
 import logging
 import traceback
@@ -7,8 +12,8 @@ from linear_client import LABEL_AUTO_DONE, LABEL_AUTO_ERROR
 
 logger = logging.getLogger(__name__)
 
-# In-memory registry of open new_model PRs waiting for merge
-# { pr_number: {model_name, ticket_identifier, issue_id, label_ids} }
+# In-memory cache of open new_model PRs awaiting merge.
+# Populated from Supabase at startup (see init_tracked_prs) and kept in sync on every change.
 _tracked_prs: dict[int, dict] = {}
 
 
@@ -97,20 +102,35 @@ Please review and handle manually, or update the ticket description and set back
 > 🤖 GetSafe Analytics Agent · `{tid}`"""
 
 
-# ── core processor ────────────────────────────────────────────────────────────
+# ── startup init ──────────────────────────────────────────────────────────────
+
+def init_tracked_prs(db) -> None:
+    """Load persisted tracked PRs from Supabase into the in-memory cache at startup."""
+    loaded = db.load_tracked_prs()
+    _tracked_prs.update(loaded)
+    if loaded:
+        logger.info(f"Loaded {len(loaded)} tracked PR(s) from Supabase: {list(loaded.keys())}")
+
+
+# ── core ticket processor ─────────────────────────────────────────────────────
 
 async def process_ticket(ticket: dict, linear, db, metabase, github, openai_client):
-    from intent_classifier import classify
     import workflows.dashboard as dash_wf
     import workflows.quality   as qual_wf
     import workflows.explore   as expl_wf
     import workflows.model     as model_wf
+    from intent_classifier import classify
 
     issue_id   = ticket["id"]
     identifier = ticket["identifier"]
     title      = ticket["title"]
     desc       = ticket.get("description") or ""
     label_ids  = ticket.get("labelIds") or []
+
+    # Idempotency guard — skip tickets already handled by a previous run
+    if LABEL_AUTO_DONE in label_ids or LABEL_AUTO_ERROR in label_ids:
+        logger.info(f"[{identifier}] Already processed — skipping")
+        return
 
     logger.info(f"[{identifier}] Processing: {title}")
     linear.move_to_in_progress(issue_id)
@@ -129,20 +149,19 @@ async def process_ticket(ticket: dict, linear, db, metabase, github, openai_clie
             comment = _quality_comment(result, intent, identifier)
 
         elif intent_type == "new_model":
-            # Pass db so the workflow can validate SQL before pushing
             result  = model_wf.run(intent, github, db, identifier, openai_client)
             comment = _model_comment(result, intent, identifier)
-            # Track the PR so we can detect when it's merged
+
             if result.get("success") and result.get("pr_number"):
-                _tracked_prs[result["pr_number"]] = {
+                info = {
                     "model_name":        result["model_name"],
                     "ticket_identifier": identifier,
                     "issue_id":          issue_id,
                     "label_ids":         label_ids,
                 }
-                logger.info(
-                    f"[{identifier}] Tracking PR #{result['pr_number']} for post-merge"
-                )
+                _tracked_prs[result["pr_number"]] = info
+                db.upsert_tracked_pr(pr_number=result["pr_number"], **info)
+                logger.info(f"[{identifier}] Tracking PR #{result['pr_number']}")
 
         else:
             result  = expl_wf.run(intent, db, openai_client)
@@ -151,7 +170,7 @@ async def process_ticket(ticket: dict, linear, db, metabase, github, openai_clie
         linear.comment(issue_id, comment)
         linear.add_label(issue_id, LABEL_AUTO_DONE, label_ids)
 
-        # new_model stays In Progress (waiting for PR review + dbt run); rest → Done
+        # new_model stays In Progress (waiting for PR review); everything else → Done
         if intent_type != "new_model":
             linear.move_to_done(issue_id)
 
@@ -164,21 +183,28 @@ async def process_ticket(ticket: dict, linear, db, metabase, github, openai_clie
         linear.add_label(issue_id, LABEL_AUTO_ERROR, label_ids)
 
 
-# ── post-merge PR tracker ─────────────────────────────────────────────────────
+# ── PR merge checker (called via /check-prs endpoint) ────────────────────────
 
-async def _check_merged_prs(linear, db, metabase, github):
+async def check_merged_prs(linear, db, metabase, github) -> dict:
     """
-    Called each polling cycle. For every tracked new_model PR, check if it was
-    merged. If yes, run the post-merge workflow (Metabase + Linear completion).
+    Check whether any tracked new_model PRs have been merged.
+    Called by N8N on a schedule or triggered by a GitHub PR-merged webhook.
+    Returns a summary dict for the API response.
     """
     import workflows.post_merge as post_merge_wf
 
+    if not _tracked_prs:
+        return {"checked": 0, "completed": [], "pending": []}
+
     completed = []
+    pending = []
+
     for pr_number, info in list(_tracked_prs.items()):
         try:
             pr_data = github.get_pr(pr_number)
             if not pr_data.get("merged_at"):
-                continue  # still open or closed without merge
+                pending.append(pr_number)
+                continue
 
             logger.info(
                 f"[{info['ticket_identifier']}] PR #{pr_number} merged — "
@@ -195,35 +221,18 @@ async def _check_merged_prs(linear, db, metabase, github):
             )
             if result.get("ready"):
                 completed.append(pr_number)
-            # If not ready (table not materialized yet), leave in tracking dict
-            # and retry next polling cycle
+                _tracked_prs.pop(pr_number, None)
+                db.delete_tracked_pr(pr_number)
+            else:
+                # Table not yet materialized — retry on next call
+                pending.append(pr_number)
 
         except Exception as exc:
             logger.error(f"PR tracking error for PR #{pr_number}: {exc}")
+            pending.append(pr_number)
 
-    for n in completed:
-        del _tracked_prs[n]
-
-
-# ── polling loop ──────────────────────────────────────────────────────────────
-
-async def start_polling(interval: int, linear, db, metabase, github, openai_client):
-    logger.info(f"Polling loop started (interval: {interval}s)")
-    while True:
-        try:
-            # Check for new tickets
-            tickets = linear.get_pending_tickets()
-            if tickets:
-                logger.info(f"Found {len(tickets)} pending ticket(s)")
-                for t in tickets:
-                    await process_ticket(t, linear, db, metabase, github, openai_client)
-            else:
-                logger.debug("No pending tickets")
-
-            # Check for merged new_model PRs
-            if _tracked_prs:
-                await _check_merged_prs(linear, db, metabase, github)
-
-        except Exception as exc:
-            logger.error(f"Polling error: {exc}")
-        await asyncio.sleep(interval)
+    return {
+        "checked": len(completed) + len(pending),
+        "completed": completed,
+        "pending": pending,
+    }
