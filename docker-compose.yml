@@ -10,7 +10,7 @@ services:
       dockerfile: Dockerfile
     container_name: getsafe_agent
     ports:
-      - "8000:8000"
+      - "8001:8000"
     env_file: .env
     environment:
       METABASE_URL: http://host.docker.internal:12345
