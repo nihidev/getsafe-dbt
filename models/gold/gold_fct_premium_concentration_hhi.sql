@@ -1,73 +1,66 @@
-{{ config(materialized='table', tags=['gold']) }}
+{{ config(materialized='table', schema='public_gold', tags=['gold']) }}
 
-WITH filtered_transactions AS (
+WITH monthly_premiums AS (
     SELECT
+        month,
         party,
-        transaction_month,
-        premium_amount
-    FROM
-        {{ ref('silver_transactions') }}
-    WHERE
-        status = 'completed'
-        AND _is_clean = TRUE
+        net_premium,
+        written_premium,
+        transaction_count
+    FROM {{ ref('gold_fct_monthly_premiums') }}
 ),
 
-monthly_premiums AS (
+total_by_month AS (
     SELECT
-        party,
-        transaction_month,
-        SUM(premium_amount) AS total_premium
-    FROM
-        filtered_transactions
-    GROUP BY
-        party,
-        transaction_month
+        month,
+        SUM(net_premium) AS total_net_premium
+    FROM monthly_premiums
+    GROUP BY month
 ),
 
-total_monthly_premiums AS (
+party_shares AS (
     SELECT
-        transaction_month,
-        SUM(total_premium) AS total_market_premium
-    FROM
-        monthly_premiums
-    GROUP BY
-        transaction_month
-),
-
-premium_concentration AS (
-    SELECT
+        mp.month,
         mp.party,
-        mp.transaction_month,
-        mp.total_premium,
-        tmp.total_market_premium,
-        (mp.total_premium::NUMERIC / tmp.total_market_premium::NUMERIC) ^ 2 AS hhi_component
-    FROM
-        monthly_premiums mp
-    JOIN
-        total_monthly_premiums tmp
-    ON
-        mp.transaction_month = tmp.transaction_month
+        mp.net_premium,
+        mp.written_premium,
+        mp.transaction_count,
+        t.total_net_premium,
+        mp.net_premium / NULLIF(t.total_net_premium, 0)           AS market_share,
+        POWER(mp.net_premium / NULLIF(t.total_net_premium, 0), 2) AS share_squared
+    FROM monthly_premiums mp
+    JOIN total_by_month t ON mp.month = t.month
 ),
 
-hhi_index AS (
+hhi AS (
     SELECT
-        transaction_month,
-        SUM(hhi_component) AS hhi_index
-    FROM
-        premium_concentration
-    GROUP BY
-        transaction_month
+        month,
+        ROUND(SUM(share_squared) * 10000, 2)                           AS hhi_score,
+        COUNT(DISTINCT party)                                           AS active_parties,
+        MAX(market_share)                                               AS max_party_share,
+        CASE
+            WHEN ROUND(SUM(share_squared) * 10000, 2) < 1500  THEN 'competitive'
+            WHEN ROUND(SUM(share_squared) * 10000, 2) <= 2500 THEN 'moderately_concentrated'
+            ELSE 'highly_concentrated'
+        END AS concentration_level,
+        CASE WHEN MAX(market_share) > 0.40 THEN TRUE ELSE FALSE END AS dominant_party_flag
+    FROM party_shares
+    GROUP BY month
 )
 
 SELECT
-    pc.party,
-    pc.transaction_month,
-    pc.total_premium,
-    pc.total_market_premium,
-    hhi.hhi_index
-FROM
-    premium_concentration pc
-JOIN
-    hhi_index hhi
-ON
-    pc.transaction_month = hhi.transaction_month
+    ps.party,
+    ps.month,
+    ps.net_premium,
+    ps.written_premium,
+    ps.total_net_premium,
+    ROUND(ps.market_share * 100, 2)  AS market_share_pct,
+    h.hhi_score,
+    h.active_parties,
+    h.concentration_level,
+    h.dominant_party_flag,
+    ps.transaction_count,
+    NOW()                            AS _created_at
+FROM party_shares ps
+JOIN hhi h ON ps.month = h.month
+ORDER BY ps.month ASC, ps.market_share DESC

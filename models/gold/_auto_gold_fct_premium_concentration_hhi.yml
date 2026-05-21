@@ -2,22 +2,21 @@ version: 2
 
 models:
   - name: gold_fct_premium_concentration_hhi
+  config: 
+    materialized: table
+    schema: public_gold
   description: >
-    This model calculates the monthly premium concentration risk using the Herfindahl-Hirschman Index (HHI) for each reinsurance party. The HHI is a measure of market concentration and is used to assess the level of competition among reinsurance parties.
-
+    This model calculates the monthly premium concentration risk using the Herfindahl-Hirschman Index (HHI) for each reinsurance party. The HHI is a measure of market concentration and is used to determine the level of competition among reinsurance parties based on their share of total net premiums.
   columns:
-    - name: reinsurance_party_id
-      description: >
-        Unique identifier for each reinsurance party. This column is used to distinguish between different parties involved in reinsurance agreements.
-      tests:
-        - not_null
-
     - name: month
-      description: >
-        The month for which the premium concentration risk is calculated. This column helps in tracking the changes in concentration risk over time.
+      description: "The month for which the premium concentration risk is calculated."
       tests:
         - not_null
-
-    - name: hhi_index
-      description: >
-        The Herfindahl-Hirschman Index value for the given month and reinsurance party. A higher HHI indicates a higher concentration of premiums among fewer parties, suggesting less competition.
+    - name: hhi
+      description: "The Herfindahl-Hirschman Index (HHI) value representing the concentration of premiums among reinsurance parties for the given month."
+      tests:
+        - not_null
+    - name: _created_at
+      description: "The timestamp indicating when the record was created."
+      tests:
+        - not_null
