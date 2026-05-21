@@ -3,26 +3,21 @@ version: 2
 models:
   - name: gold_fct_premium_concentration_hhi
   description: >
-    This model calculates the monthly premium concentration risk using the Herfindahl-Hirschman Index (HHI). 
-    The HHI is a measure of market concentration and is used to determine the level of competition within the 
-    insurance premium market. A higher HHI indicates a higher concentration and potentially less competition.
+    This model calculates the monthly premium concentration risk using the Herfindahl-Hirschman Index (HHI) for each reinsurance party. The HHI is a measure of market concentration and is used to assess the level of competition among reinsurance parties.
 
   columns:
-    - name: month
-      description: "The month for which the premium concentration is calculated, formatted as YYYY-MM."
+    - name: reinsurance_party_id
+      description: >
+        Unique identifier for each reinsurance party. This column is used to distinguish between different parties involved in reinsurance agreements.
       tests:
         - not_null
 
-    - name: insurer_id
-      description: "Unique identifier for the insurance company."
+    - name: month
+      description: >
+        The month for which the premium concentration risk is calculated. This column helps in tracking the changes in concentration risk over time.
       tests:
         - not_null
 
     - name: hhi_index
-      description: "The Herfindahl-Hirschman Index value representing the concentration of premiums for the given month."
-
-    - name: total_premium
-      description: "The total premium amount collected by the insurer for the given month."
-
-    - name: market_share
-      description: "The market share of the insurer for the given month, calculated as the ratio of the insurer's premium to the total market premium."
+      description: >
+        The Herfindahl-Hirschman Index value for the given month and reinsurance party. A higher HHI indicates a higher concentration of premiums among fewer parties, suggesting less competition.
