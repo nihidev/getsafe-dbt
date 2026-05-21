@@ -1,73 +1,52 @@
-{{ config(materialized='table', tags=['gold']) }}
+{{ config(materialized='table', schema='public_gold', tags=['gold']) }}
 
-WITH filtered_transactions AS (
+WITH monthly_premium AS (
     SELECT
+        month,
         party,
-        transaction_month,
-        premium_amount
+        SUM(net_premium) AS total_net_premium
     FROM
-        {{ ref('silver_transactions') }}
-    WHERE
-        status = 'completed'
-        AND _is_clean = TRUE
-),
-
-monthly_premiums AS (
-    SELECT
-        party,
-        transaction_month,
-        SUM(premium_amount) AS total_premium
-    FROM
-        filtered_transactions
+        {{ ref('gold_fct_monthly_premiums') }}
     GROUP BY
-        party,
-        transaction_month
+        month, party
 ),
 
-total_monthly_premiums AS (
+total_monthly_premium AS (
     SELECT
-        transaction_month,
-        SUM(total_premium) AS total_market_premium
+        month,
+        SUM(total_net_premium) AS total_premium
     FROM
-        monthly_premiums
+        monthly_premium
     GROUP BY
-        transaction_month
+        month
 ),
 
-premium_concentration AS (
+premium_share AS (
     SELECT
+        mp.month,
         mp.party,
-        mp.transaction_month,
-        mp.total_premium,
-        tmp.total_market_premium,
-        (mp.total_premium::NUMERIC / tmp.total_market_premium::NUMERIC) ^ 2 AS hhi_component
+        mp.total_net_premium,
+        tmp.total_premium,
+        mp.total_net_premium / NULLIF(tmp.total_premium, 0) AS market_share
     FROM
-        monthly_premiums mp
+        monthly_premium mp
     JOIN
-        total_monthly_premiums tmp
-    ON
-        mp.transaction_month = tmp.transaction_month
+        total_monthly_premium tmp ON mp.month = tmp.month
 ),
 
-hhi_index AS (
+hhi_calculation AS (
     SELECT
-        transaction_month,
-        SUM(hhi_component) AS hhi_index
+        month,
+        ROUND(SUM(POWER(market_share, 2)), 4) AS hhi
     FROM
-        premium_concentration
+        premium_share
     GROUP BY
-        transaction_month
+        month
 )
 
 SELECT
-    pc.party,
-    pc.transaction_month,
-    pc.total_premium,
-    pc.total_market_premium,
-    hhi.hhi_index
+    month,
+    hhi,
+    NOW() AS _created_at
 FROM
-    premium_concentration pc
-JOIN
-    hhi_index hhi
-ON
-    pc.transaction_month = hhi.transaction_month
+    hhi_calculation
