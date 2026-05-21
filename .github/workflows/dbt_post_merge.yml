@@ -1,0 +1,116 @@
+name: dbt post-merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  dbt-run:
+    # Only fire for merged PRs on auto-generated branches
+    if: >
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'auto/')
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dbt-postgres
+        run: pip install dbt-postgres==1.8.*
+
+      - name: Extract model name and ticket from branch
+        id: meta
+        run: |
+          # Branch format: auto/get-3-gold_fct_premium_concentration_hhi
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          # Remove "auto/" prefix → "get-3-gold_fct_..."
+          WITHOUT_PREFIX="${BRANCH#auto/}"
+          # Ticket = first two dash-separated tokens (e.g. "get-3" → "GET-3")
+          TICKET=$(echo "$WITHOUT_PREFIX" | grep -oP '^[a-z]+-\d+' | tr '[:lower:]' '[:upper:]')
+          # Model = everything after "get-3-"
+          MODEL=$(echo "$WITHOUT_PREFIX" | sed "s/^[a-z]\+-[0-9]\+-//")
+          echo "ticket=$TICKET" >> $GITHUB_OUTPUT
+          echo "model=$MODEL"   >> $GITHUB_OUTPUT
+          echo "Ticket: $TICKET | Model: $MODEL"
+
+      - name: Write dbt profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          getsafe_analytics:
+            target: supabase
+            outputs:
+              supabase:
+                type: postgres
+                host: ${{ secrets.SUPABASE_HOST }}
+                user: ${{ secrets.SUPABASE_USER }}
+                password: ${{ secrets.SUPABASE_PASSWORD }}
+                port: 5432
+                dbname: postgres
+                schema: public
+                threads: 4
+                connect_timeout: 10
+                sslmode: require
+          EOF
+
+      - name: Install dbt packages
+        run: dbt deps
+
+      - name: dbt run
+        id: dbt_run
+        run: |
+          dbt run --select ${{ steps.meta.outputs.model }} --target supabase
+        continue-on-error: true
+
+      - name: dbt test
+        id: dbt_test
+        if: steps.dbt_run.outcome == 'success'
+        run: |
+          dbt test --select ${{ steps.meta.outputs.model }} --target supabase
+        continue-on-error: true
+
+      - name: Notify Linear — success
+        if: steps.dbt_run.outcome == 'success' && steps.dbt_test.outcome == 'success'
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          TICKET: ${{ steps.meta.outputs.ticket }}
+          MODEL: ${{ steps.meta.outputs.model }}
+        run: |
+          # Look up the issue ID from the identifier
+          ISSUE_ID=$(curl -s -X POST https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"query { issue(id:\\\"$TICKET\\\") { id } }\"}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['issue']['id'])")
+
+          curl -s -X POST https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"mutation { commentCreate(input: { issueId: \\\"$ISSUE_ID\\\", body: \\\"## ✅ dbt Run Complete\\\\n\\\\n\`$MODEL\` is now materialized in Supabase.\\\\n\\\\ndbt run ✅ · dbt test ✅\\\\n\\\\nThe agent will create the Metabase dashboard on next polling cycle.\\\\n\\\\n> 🤖 GitHub Actions\\\" }) { success } }\"}"
+
+      - name: Notify Linear — failure
+        if: steps.dbt_run.outcome == 'failure' || steps.dbt_test.outcome == 'failure'
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          TICKET: ${{ steps.meta.outputs.ticket }}
+          MODEL: ${{ steps.meta.outputs.model }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          ISSUE_ID=$(curl -s -X POST https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"query { issue(id:\\\"$TICKET\\\") { id } }\"}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['issue']['id'])")
+
+          curl -s -X POST https://api.linear.app/graphql \
+            -H "Authorization: $LINEAR_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"mutation { commentCreate(input: { issueId: \\\"$ISSUE_ID\\\", body: \\\"## ❌ dbt Run Failed\\\\n\\\\n\`$MODEL\` failed to materialize.\\\\n\\\\n[View logs]($RUN_URL)\\\\n\\\\n> 🤖 GitHub Actions\\\" }) { success } }\"}"
