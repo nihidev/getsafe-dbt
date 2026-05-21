@@ -14,20 +14,20 @@ WITH filtered_transactions AS (
 
 monthly_premiums AS (
     SELECT
-        transaction_month,
         party,
+        transaction_month,
         SUM(premium_amount) AS total_premium
     FROM
         filtered_transactions
     GROUP BY
-        transaction_month,
-        party
+        party,
+        transaction_month
 ),
 
 total_monthly_premiums AS (
     SELECT
         transaction_month,
-        SUM(total_premium) AS total_premium_all_parties
+        SUM(total_premium) AS total_market_premium
     FROM
         monthly_premiums
     GROUP BY
@@ -36,11 +36,11 @@ total_monthly_premiums AS (
 
 premium_concentration AS (
     SELECT
-        mp.transaction_month,
         mp.party,
+        mp.transaction_month,
         mp.total_premium,
-        tmp.total_premium_all_parties,
-        (mp.total_premium::NUMERIC / tmp.total_premium_all_parties::NUMERIC) ^ 2 AS hhi_component
+        tmp.total_market_premium,
+        (mp.total_premium::NUMERIC / tmp.total_market_premium::NUMERIC) ^ 2 AS hhi_component
     FROM
         monthly_premiums mp
     JOIN
@@ -60,7 +60,14 @@ hhi_index AS (
 )
 
 SELECT
-    hhi.transaction_month,
+    pc.party,
+    pc.transaction_month,
+    pc.total_premium,
+    pc.total_market_premium,
     hhi.hhi_index
 FROM
+    premium_concentration pc
+JOIN
     hhi_index hhi
+ON
+    pc.transaction_month = hhi.transaction_month
