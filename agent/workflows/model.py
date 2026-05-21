@@ -5,40 +5,11 @@ import re
 
 from openai import OpenAI
 
+from schemas import MODEL_SCHEMA as _SCHEMA
+
 logger = logging.getLogger(__name__)
 
 GOLD = os.environ.get("GOLD_SCHEMA", "public_gold")
-
-# Exact schema fed into every prompt — prevents GPT-4o reaching back to silver for gold-level queries
-_SCHEMA = f"""Available dbt models and EXACT column names:
-
-ref('gold_fct_monthly_premiums') → {GOLD}.gold_fct_monthly_premiums
-  Grain: party × month | Use this for any party-level premium aggregation or market share analysis
-  Columns: party (varchar), month (text YYYY-MM), written_premium (numeric), refunded_premium (numeric),
-           net_premium (numeric), earned_premium (numeric), transaction_count (bigint),
-           first_transaction_date (date), last_transaction_date (date), _created_at (timestamptz)
-
-ref('gold_fct_customer_activity_daily') → {GOLD}.gold_fct_customer_activity_daily
-  Grain: user_id × activity_date
-  Columns: activity_date (date), user_id (text), product_group (text: household/legal/liability),
-           acquisition_date (date), started_at (date), churned_at (date — null means active),
-           daily_premium (numeric), monthly_premium (numeric), days_since_acquisition (int),
-           activity_month (text), _loaded_at (timestamptz)
-
-ref('gold_fct_accounting_reconciliation') → {GOLD}.gold_fct_accounting_reconciliation
-  Grain: party × month
-  Columns: party, month, accounting_premium, finance_premium, net_premium, refunded_premium,
-           net_delta, delta, delta_pct, reconciliation_status, is_reconciled, transaction_count
-
-ref('silver_transactions') → public_silver.silver_transactions
-  Use ONLY when the requirement explicitly asks for raw transaction-level data
-  Columns: transaction_id, created_at_ts, transaction_date, transaction_month (text YYYY-MM),
-           premium_amount (float8), premium_currency, party, status (valid: 'processed','process'),
-           _status_normalized (bool), _is_clean (bool)
-
-Seeds:
-ref('accounting_closing') → accounting_closing
-  Columns: party (varchar), month (varchar), accounting_premium (double precision)"""
 
 # Maps {{ ref('x') }} → real schema.table for EXPLAIN validation
 _REF_MAP = {
@@ -132,7 +103,7 @@ def _gen_sql(model_name: str, requirement: str, openai_client: OpenAI) -> str:
 Requirement: {requirement}
 
 Rules:
-- First line: {{{{ config(materialized='table', schema='{GOLD}', tags=['gold']) }}}}
+- First line: {{{{ config(materialized='table', tags=['gold']) }}}}
 - Use {{{{ ref('model_name') }}}} for ALL table references — never hardcode a schema name
 - Use NULLIF(x, 0) to guard every division denominator
 - Use POWER(x, 2) not x*x when squaring
@@ -157,11 +128,19 @@ SQL (derive the exact output columns from this):
 
 Rules:
 - Start with: - name: {model_name}
-- Add: config: {{materialized: table, schema: {GOLD}}}
 - Write a clear description
 - Document EVERY column in the final SELECT with a description
 - not_null tests on all key columns
-- accepted_values tests where the column has a fixed set of values
+- For columns with a fixed set of allowed values use EXACTLY this accepted_values syntax:
+      - accepted_values:
+          arguments:
+            values: ['val1', 'val2', 'val3']
+- For grain uniqueness add a model-level test block:
+  tests:
+    - dbt_utils.unique_combination_of_columns:
+        arguments:
+          combination_of_columns: ['col1', 'col2']
+- Do NOT add a config block — materialization and schema are set in dbt_project.yml
 - Return ONLY yaml starting with '- name:' — no fences, no explanation"""}],
         temperature=0,
     )
