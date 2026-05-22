@@ -4,13 +4,30 @@ on:
   pull_request:
     types: [closed]
     branches: [main]
+  # Fallback: some git clients / API merges fire push instead of pull_request
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "dbt model name to run (e.g. gold_fct_monthly_churn_rate_by_party)"
+        required: true
+      ticket:
+        description: "Linear ticket identifier (e.g. GET-15)"
+        required: true
 
 jobs:
   dbt-run:
-    # Only fire for merged PRs on auto-generated branches
+    # Pull-request merge: only for merged auto/ PRs
+    # Push to main: only when the head commit message contains [auto, GET-
+    # Manual dispatch: always run
     if: >
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'auto/')
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'auto/')) ||
+      (github.event_name == 'push' &&
+       contains(github.event.head_commit.message, '[auto, GET-'))
 
     runs-on: ubuntu-latest
 
@@ -26,17 +43,26 @@ jobs:
       - name: Install dbt-postgres
         run: pip install dbt-postgres==1.8.*
 
-      - name: Extract model name and ticket from branch
+      - name: Extract model name and ticket
         id: meta
         run: |
-          # Branch format: auto/get-3-gold_fct_premium_concentration_hhi
-          BRANCH="${{ github.event.pull_request.head.ref }}"
-          WITHOUT_PREFIX="${BRANCH#auto/}"
-          TICKET=$(echo "$WITHOUT_PREFIX" | grep -oP '^[a-z]+-\d+' | tr '[:lower:]' '[:upper:]')
-          MODEL=$(echo "$WITHOUT_PREFIX" | sed "s/^[a-z]\+-[0-9]\+-//")
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODEL="${{ github.event.inputs.model }}"
+            TICKET="${{ github.event.inputs.ticket }}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH="${{ github.event.pull_request.head.ref }}"
+            WITHOUT_PREFIX="${BRANCH#auto/}"
+            TICKET=$(echo "$WITHOUT_PREFIX" | grep -oP '^[a-z]+-\d+' | tr '[:lower:]' '[:upper:]')
+            MODEL=$(echo "$WITHOUT_PREFIX" | sed "s/^[a-z]\+-[0-9]\+-//")
+          else
+            # push event — extract from commit message: "feat: model_name [auto, GET-N]"
+            MSG="${{ github.event.head_commit.message }}"
+            TICKET=$(echo "$MSG" | grep -oP '\[auto, \K[A-Z]+-\d+')
+            MODEL=$(echo "$MSG" | grep -oP 'feat: \K[a-z_]+' | head -1)
+          fi
           echo "ticket=$TICKET" >> $GITHUB_OUTPUT
           echo "model=$MODEL"   >> $GITHUB_OUTPUT
-          echo "Ticket: $TICKET | Model: $MODEL"
+          echo "Trigger=${{ github.event_name }} | Ticket=$TICKET | Model=$MODEL"
 
       - name: Write dbt profiles.yml
         run: |
