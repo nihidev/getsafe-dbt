@@ -24,6 +24,8 @@ def _safe_where(table: str, filters) -> str:
         if k not in allowed:
             continue
         v = str(v)
+        if v.lower() in ("none", "null", "all", ""):
+            continue
         if not _SAFE_VALUE.match(v):
             continue
         # month is VARCHAR YYYY-MM — a bare year must become a LIKE filter

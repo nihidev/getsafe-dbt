@@ -30,6 +30,7 @@ Return valid JSON only — no markdown, no explanation. Schema:
   "chart_type":  "bar|line|pie|table|scalar|area|null",
   "group_by":    "party|month|party_month",
   "filters":     {"party": "berlinre|dronant|getland|liadigital", "month": "YYYY-MM or YYYY"},
+  NOTE: only set a filter key if the user explicitly names a specific value. Omit the key entirely if the user means "all" or does not specify. Never use null, None, or "all" as a filter value.
   "metric":      "short description of what the user wants",
   "model_name":  "snake_case name for new_model intent, else null",
   "reasoning":   "one sentence explaining your classification"
