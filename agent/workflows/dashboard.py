@@ -26,7 +26,11 @@ def _safe_where(table: str, filters) -> str:
         v = str(v)
         if not _SAFE_VALUE.match(v):
             continue
-        clauses.append(f"{k} = '{v}'")
+        # month is VARCHAR YYYY-MM — a bare year must become a LIKE filter
+        if k == "month" and re.match(r"^\d{4}$", v):
+            clauses.append(f"month LIKE '{v}-%'")
+        else:
+            clauses.append(f"{k} = '{v}'")
     return "WHERE " + " AND ".join(clauses) if clauses else ""
 
 
