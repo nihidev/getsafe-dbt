@@ -1,0 +1,24 @@
+version: 2
+
+models:
+  - name: gold_fct_monthly_churn_rate_by_party
+  description: >
+    This model calculates the monthly churn rate for users by reinsurance party. 
+    It determines the percentage of users who have churned each month, segmented by the reinsurance party.
+  columns:
+    - name: party
+      description: The reinsurance party associated with the users.
+      tests:
+        - not_null
+    - name: month
+      description: The month in 'YYYY-MM' format for which the churn rate is calculated.
+      tests:
+        - not_null
+    - name: churn_rate_percentage
+      description: The percentage of users who churned in the given month for the specified party.
+    - name: _created_at
+      description: The timestamp when the record was created.
+  tests:
+    - dbt_utils.unique_combination_of_columns:
+        arguments:
+          combination_of_columns: ['party', 'month']
