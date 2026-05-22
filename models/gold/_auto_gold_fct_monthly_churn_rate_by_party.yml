@@ -1,0 +1,43 @@
+version: 2
+
+models:
+  - name: gold_fct_monthly_churn_rate_by_party
+  description: >
+    This model calculates the monthly churn rate per reinsurance party. It is used by the Finance team to monitor refund risk per partner. The churn rate is defined as the ratio of refunded premium to written premium for each party and month. The model also flags months where the churn rate exceeds 0.10 as high churn.
+
+  columns:
+    - name: party
+      description: The identifier for the reinsurance party.
+      tests:
+        - not_null
+
+    - name: month
+      description: The month for which the churn rate is calculated.
+      tests:
+        - not_null
+
+    - name: churn_rate
+      description: The churn rate calculated as refunded_premium divided by written_premium for each party and month.
+
+    - name: written_premium
+      description: The total premium written for the party in the given month.
+
+    - name: refunded_premium
+      description: The total premium refunded for the party in the given month.
+
+    - name: net_premium
+      description: The net premium calculated as written_premium minus refunded_premium for the party in the given month.
+
+    - name: transaction_count
+      description: The number of transactions for the party in the given month.
+
+    - name: high_churn
+      description: A boolean flag indicating if the churn rate exceeds 0.10 for the given month.
+
+    - name: _created_at
+      description: The timestamp when the record was created.
+
+  tests:
+    - dbt_utils.unique_combination_of_columns:
+        arguments:
+          combination_of_columns: ['party', 'month']
