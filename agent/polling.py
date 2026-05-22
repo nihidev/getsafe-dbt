@@ -149,6 +149,10 @@ async def process_ticket(ticket: dict, linear, db, metabase, github, openai_clie
             comment = _quality_comment(result, intent, identifier)
 
         elif intent_type == "new_model":
+            # Inject full ticket text so _gen_sql has the complete requirement,
+            # not just the classifier's short metric summary.
+            intent["_title"] = title
+            intent["_description"] = desc
             result  = model_wf.run(intent, github, db, identifier, openai_client)
             comment = _model_comment(result, intent, identifier)
 

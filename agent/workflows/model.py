@@ -54,10 +54,10 @@ Generated SQL:
 {sql}
 
 Check for:
-1. Wrong table references (e.g. using silver when gold already has the aggregation)
-2. Missing required output columns stated in the requirement
-3. Logic errors (wrong formula, missing multiplier, wrong filter values)
-4. Missing NULLIF guards on denominators in division
+1. Wrong table references — does the SQL use the source tables explicitly stated in the requirement? Flag if it uses a different table.
+2. Missing required output columns stated in the requirement — every column/metric the user asked for must appear in the final SELECT.
+3. Logic errors — wrong formula, wrong multiplier, wrong filter, wrong grain.
+4. Missing NULLIF guards on denominators in any division expression.
 
 Return ONLY valid JSON: {{"issues": ["...", "..."]}} — or {{"issues": []}} if no problems found."""}],
         temperature=0,
@@ -153,7 +153,13 @@ def run(intent: dict, github, db, ticket_identifier: str, openai_client: OpenAI)
     if not pat or pat == "PASTE_YOUR_GITHUB_PAT_HERE":
         return {"success": False, "error": "GitHub PAT not configured."}
 
-    requirement = intent.get("metric") or "new analytics model"
+    # Use the full ticket description so GPT-4o has exact column names, formulas,
+    # and source tables — the classifier's short metric summary loses too much detail.
+    requirement = (
+        f"Title: {intent['_title']}\n\nDescription:\n{intent['_description']}"
+        if intent.get("_title")
+        else intent.get("metric") or "new analytics model"
+    )
     raw_name = intent.get("model_name") or re.sub(r"[^a-z0-9]", "_", requirement.lower())[:40]
     model_name = f"gold_fct_{raw_name}" if not raw_name.startswith("gold_") else raw_name
     branch = f"auto/{ticket_identifier.lower()}-{model_name}"
