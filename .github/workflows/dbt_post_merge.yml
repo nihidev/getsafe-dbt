@@ -61,6 +61,10 @@ EOF
       - name: Install dbt packages
         run: dbt deps
 
+      - name: dbt seed
+        run: dbt seed --target supabase
+        continue-on-error: true
+
       - name: dbt run
         id: dbt_run
         run: dbt run --select ${{ steps.meta.outputs.model }} --target supabase
