@@ -13,8 +13,8 @@ VALID_INTENTS = {"dashboard", "data_quality", "new_model", "explore"}
 _SYSTEM = """You are an intent classifier for a data analytics automation system.
 
 Available gold tables:
-- gold_fct_monthly_premiums       → party, month, written_premium, net_premium, refunded_premium, earned_premium, transaction_count
-- gold_fct_accounting_reconciliation → party, month, accounting_premium, finance_premium, delta, delta_pct, reconciliation_status
+- gold_fct_monthly_premiums       → party, month (VARCHAR YYYY-MM), written_premium, net_premium, refunded_premium, earned_premium, transaction_count
+- gold_fct_accounting_reconciliation → party, month (VARCHAR YYYY-MM), accounting_premium, finance_premium, delta, delta_pct, reconciliation_status
 - gold_fct_customer_activity_daily  → user_id, activity_date, product_group, daily_premium, monthly_premium, churned_at
 
 Classify the Linear ticket into exactly one of:
@@ -28,11 +28,22 @@ Return valid JSON only — no markdown, no explanation. Schema:
   "intent":      "dashboard|data_quality|new_model|explore",
   "table":       "gold_fct_monthly_premiums|gold_fct_accounting_reconciliation|gold_fct_customer_activity_daily|null",
   "chart_type":  "bar|line|pie|table|scalar|area|null",
-  "filters":     {"party": "...", "month": "...", ...},
+  "group_by":    "party|month|party_month",
+  "filters":     {"party": "berlinre|dronant|getland|liadigital", "month": "YYYY-MM or YYYY"},
   "metric":      "short description of what the user wants",
   "model_name":  "snake_case name for new_model intent, else null",
   "reasoning":   "one sentence explaining your classification"
-}"""
+}
+
+group_by rules — pick the grain that matches the request:
+  "party"       – compare parties side-by-side, aggregated across all months
+                  (keywords: "by party", "per party", "vs", "compare", "which party", "each party")
+  "month"       – time trend aggregated across all parties
+                  (keywords: "over time", "monthly trend", "each month", "month by month", "how did it change")
+  "party_month" – full breakdown by both party AND month
+                  (keywords: "breakdown", "detail", "by party each month", "trend per party")
+
+Default to "party_month" only when the request explicitly needs both dimensions."""
 
 
 def classify(title: str, description: str = "") -> dict:

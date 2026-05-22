@@ -35,15 +35,43 @@ def _safe_where(table: str, filters) -> str:
 
 
 def _build_sql(intent: dict) -> str:
-    table = intent.get("table") or "gold_fct_monthly_premiums"
-    where = _safe_where(table, intent.get("filters"))
+    table    = intent.get("table") or "gold_fct_monthly_premiums"
+    where    = _safe_where(table, intent.get("filters"))
+    group_by = intent.get("group_by", "party_month")
 
     if "monthly_premiums" in table:
-        return f"""
+        if group_by == "party":
+            # Compare parties side-by-side, aggregated across all months
+            return f"""
+SELECT party,
+       ROUND(SUM(written_premium)::numeric, 2)  AS written_premium,
+       ROUND(SUM(net_premium)::numeric, 2)       AS net_premium,
+       ROUND(SUM(refunded_premium)::numeric, 2)  AS refunded_premium,
+       SUM(transaction_count)                    AS transaction_count
+FROM {GOLD}.gold_fct_monthly_premiums
+{where}
+GROUP BY party
+ORDER BY written_premium DESC
+""".strip()
+        elif group_by == "month":
+            # Time trend across all parties
+            return f"""
+SELECT month,
+       ROUND(SUM(written_premium)::numeric, 2)  AS written_premium,
+       ROUND(SUM(net_premium)::numeric, 2)       AS net_premium,
+       ROUND(SUM(refunded_premium)::numeric, 2)  AS refunded_premium
+FROM {GOLD}.gold_fct_monthly_premiums
+{where}
+GROUP BY month
+ORDER BY month
+""".strip()
+        else:
+            # Full breakdown: party × month
+            return f"""
 SELECT party, month,
-       SUM(written_premium)  AS written_premium,
-       SUM(net_premium)      AS net_premium,
-       SUM(refunded_premium) AS refunded_premium
+       ROUND(SUM(written_premium)::numeric, 2)  AS written_premium,
+       ROUND(SUM(net_premium)::numeric, 2)       AS net_premium,
+       ROUND(SUM(refunded_premium)::numeric, 2)  AS refunded_premium
 FROM {GOLD}.gold_fct_monthly_premiums
 {where}
 GROUP BY party, month
@@ -51,10 +79,26 @@ ORDER BY party, month
 """.strip()
 
     if "reconciliation" in table:
-        return f"""
+        if group_by == "party":
+            return f"""
+SELECT party,
+       ROUND(SUM(finance_premium)::numeric, 2)    AS finance_premium,
+       ROUND(SUM(accounting_premium)::numeric, 2) AS accounting_premium,
+       ROUND(SUM(delta)::numeric, 2)              AS total_delta,
+       ROUND(AVG(delta_pct)::numeric, 2)          AS avg_delta_pct
+FROM {GOLD}.gold_fct_accounting_reconciliation
+{where}
+GROUP BY party
+ORDER BY party
+""".strip()
+        else:
+            return f"""
 SELECT party, month,
-       finance_premium, accounting_premium,
-       delta, delta_pct, reconciliation_status
+       ROUND(finance_premium::numeric, 2)    AS finance_premium,
+       ROUND(accounting_premium::numeric, 2) AS accounting_premium,
+       ROUND(delta::numeric, 2)              AS delta,
+       ROUND(delta_pct::numeric, 2)          AS delta_pct,
+       reconciliation_status
 FROM {GOLD}.gold_fct_accounting_reconciliation
 {where}
 ORDER BY party, month
@@ -63,9 +107,9 @@ ORDER BY party, month
     if "customer" in table or "daily" in table:
         return f"""
 SELECT product_group,
-       COUNT(DISTINCT user_id)                    AS customers,
-       ROUND(SUM(daily_premium)::numeric, 2)      AS total_daily_premium,
-       ROUND(AVG(monthly_premium)::numeric, 2)    AS avg_monthly_premium
+       COUNT(DISTINCT user_id)                 AS customers,
+       ROUND(SUM(daily_premium)::numeric, 2)   AS total_daily_premium,
+       ROUND(AVG(monthly_premium)::numeric, 2) AS avg_monthly_premium
 FROM {GOLD}.gold_fct_customer_activity_daily
 {where}
 GROUP BY product_group
