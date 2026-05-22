@@ -12,7 +12,7 @@ def _gen_sql(question: str, openai_client: OpenAI) -> str:
     resp = openai_client.chat.completions.create(
         model=os.environ.get("OPENAI_MODEL", "gpt-4o"),
         messages=[
-            {"role": "system", "content": f"You are a PostgreSQL expert. Write a single valid SELECT query to answer the question. Use schema prefix {GOLD}. Return ONLY raw SQL — no markdown, no explanation.\n\n{_SCHEMA}"},
+            {"role": "system", "content": f"You are a PostgreSQL expert. Write a single valid SELECT query to answer the question. Use schema prefix {GOLD}. Return ONLY raw SQL — no markdown, no explanation.\n\nCRITICAL SQL RULES:\n- The `month` column is VARCHAR in YYYY-MM format (e.g. '2025-06'). NEVER use EXTRACT() or DATE_PART() on it — it is not a date type.\n- To filter by year use: month LIKE '2025-%'\n- To filter by month range use: month >= '2025-01' AND month <= '2025-12'\n- To extract the year use: LEFT(month, 4)\n- To extract the month number use: RIGHT(month, 2)\n\n{_SCHEMA}"},
             {"role": "user",   "content": question},
         ],
         temperature=0,

@@ -66,9 +66,9 @@ Columns:
 # ── Explore / SQL-gen prompts (one-liner per table) ───────────────────────────
 
 EXPLORE_SCHEMA = f"""Gold layer tables (schema: {GOLD}):
-- gold_fct_monthly_premiums       — party, month, written_premium, net_premium, refunded_premium, earned_premium, transaction_count
-- gold_fct_accounting_reconciliation — party, month, accounting_premium, finance_premium, delta, delta_pct, reconciliation_status
-- gold_fct_customer_activity_daily  — user_id, activity_date, product_group, daily_premium, monthly_premium, churned_at, days_since_acquisition"""
+- gold_fct_monthly_premiums       — party, month (VARCHAR YYYY-MM — use LIKE/string ops, NOT EXTRACT), written_premium, net_premium, refunded_premium, earned_premium, transaction_count
+- gold_fct_accounting_reconciliation — party, month (VARCHAR YYYY-MM), accounting_premium, finance_premium, delta, delta_pct, reconciliation_status
+- gold_fct_customer_activity_daily  — user_id, activity_date (DATE), product_group, daily_premium, monthly_premium, churned_at, days_since_acquisition"""
 
 # ── dbt model generation (detailed with ref() syntax and exact types) ─────────
 
