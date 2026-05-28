@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: gold_fct_executive_kpi
+    description: >
+      This model aggregates key performance indicators for executives, providing insights into party performance on a monthly basis. It combines data from multiple sources to calculate metrics such as written premium, growth percentage, churn rate, and a composite score that evaluates overall performance.
+    columns:
+      - name: party
+        description: The identifier for the party, sourced from gold_fct_premium_mom_growth.
+        tests:
+          - not_null
+      - name: month
+        description: The month of the record, serving as a join key across sources.
+        tests:
+          - not_null
+      - name: written_premium
+        description: The total written premium for the party in the given month, sourced from gold_fct_premium_mom_growth.
+      - name: mom_growth_pct
+        description: The month-over-month growth percentage of the written premium, sourced from gold_fct_premium_mom_growth.
+      - name: active_customers
+        description: The count of distinct active customers for the party in the given month, aggregated from gold_fct_customer_activity_daily.
+      - name: premium_per_active_customer
+        description: The average premium per active customer, calculated as written_premium divided by active_customers.
+      - name: churn_rate
+        description: The churn rate for the month, aggregated from gold_fct_churn_monthly.
+      - name: reconciliation_status
+        description: The reconciliation status for the party in the given month, sourced from gold_fct_accounting_reconciliation.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['MATCH', 'DISCREPANCY']
+      - name: composite_score
+        description: >
+          A calculated score representing the composite performance of the party, factoring in growth, churn, and reconciliation status.
+      - name: _created_at
+        description: The timestamp when the record was created.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['party', 'month']
