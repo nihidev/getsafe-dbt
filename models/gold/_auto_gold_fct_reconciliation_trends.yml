@@ -3,50 +3,62 @@ version: 2
 models:
   - name: gold_fct_reconciliation_trends
     description: >
-      This model provides a detailed analysis of reconciliation trends between finance and accounting premiums on a monthly basis for each party. It calculates the differences, tracks changes over time, and categorizes the gaps into bands for further analysis.
+      This model provides a detailed analysis of reconciliation trends by comparing finance and accounting premiums on a monthly basis for each party. It calculates the delta between these premiums, tracks changes over time, and categorizes the gap percentage into bands. The model also identifies patterns of widening gaps and provides insights into reconciliation status.
+
     columns:
       - name: party
         description: The identifier for the party involved in the reconciliation.
         tests:
           - not_null
+
       - name: month
         description: The month for which the reconciliation data is recorded.
         tests:
           - not_null
+
       - name: finance_premium
-        description: The premium amount recorded by the finance department.
+        description: The premium amount recorded in the finance system.
         tests:
           - not_null
+
       - name: accounting_premium
-        description: The premium amount recorded by the accounting department.
+        description: The premium amount recorded in the accounting system.
         tests:
           - not_null
+
       - name: delta
         description: The difference between finance_premium and accounting_premium.
+
       - name: previous_delta
         description: The delta value from the previous month for the same party.
+
       - name: delta_change
         description: The change in delta from the previous month to the current month.
+
       - name: is_widening
-        description: Indicates if the absolute value of delta has increased compared to the previous month.
-        tests:
-          - accepted_values:
-              arguments:
-                values: [true, false]
+        description: A boolean indicating if the absolute delta has increased compared to the previous month.
+
       - name: consecutive_widening
-        description: The count of consecutive months where the gap has widened.
+        description: The count of consecutive months where the gap has widened, using a gaps-and-islands pattern.
+
       - name: gap_pct
         description: The percentage representation of the absolute delta relative to the accounting_premium.
+
       - name: gap_band
         description: The categorization of gap_pct into bands: '<1%', '1–5%', '>5%'.
         tests:
           - accepted_values:
               arguments:
                 values: ['<1%', '1–5%', '>5%']
+
       - name: reconciliation_status
         description: The status of the reconciliation process as recorded in the source data.
+        tests:
+          - not_null
+
       - name: _created_at
         description: The timestamp when the record was created.
+
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
