@@ -3,14 +3,14 @@ version: 2
 models:
   - name: gold_fct_executive_kpi
     description: >
-      This model aggregates key performance indicators for executives, providing insights into party performance on a monthly basis. It combines data from multiple sources to calculate metrics such as written premium, growth percentage, churn rate, and a composite score that evaluates overall performance.
+      This model aggregates key performance indicators for executives, providing insights into party performance on a monthly basis. It combines data from various sources to calculate metrics such as written premium, churn rate, and composite score, which are essential for executive decision-making.
     columns:
       - name: party
         description: The identifier for the party, sourced from gold_fct_premium_mom_growth.
         tests:
           - not_null
       - name: month
-        description: The month of the record, serving as a join key across sources.
+        description: The month of the data, serving as a join key across sources.
         tests:
           - not_null
       - name: written_premium
@@ -22,7 +22,7 @@ models:
       - name: premium_per_active_customer
         description: The average premium per active customer, calculated as written_premium divided by active_customers.
       - name: churn_rate
-        description: The churn rate for the month, aggregated from gold_fct_churn_monthly.
+        description: The churn rate for the party in the given month, aggregated from gold_fct_churn_monthly.
       - name: reconciliation_status
         description: The reconciliation status for the party in the given month, sourced from gold_fct_accounting_reconciliation.
         tests:
@@ -31,7 +31,7 @@ models:
                 values: ['MATCH', 'DISCREPANCY']
       - name: composite_score
         description: >
-          A calculated score representing the composite performance of the party, factoring in growth, churn, and reconciliation status.
+          A composite score calculated based on mom_growth_pct, churn_rate, and reconciliation_status. It provides a performance metric for the party.
       - name: _created_at
         description: The timestamp when the record was created.
     tests:
