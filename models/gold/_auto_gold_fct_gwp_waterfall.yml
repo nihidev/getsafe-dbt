@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: gold_fct_gwp_waterfall
+    description: >
+      This model calculates the gross written premium (GWP) waterfall by classifying transactions into new business, renewal, and lapsed categories on a monthly basis per party. It aggregates premiums and computes key metrics such as net written premium and lapse-to-new-business ratio.
+    columns:
+      - name: party
+        description: The identifier for the party, sourced from the original data.
+        tests:
+          - not_null
+      - name: month
+        description: The month of the activity, truncated to the first day of the month.
+        tests:
+          - not_null
+      - name: new_business_premium
+        description: The sum of daily premiums for transactions classified as new business.
+      - name: renewal_premium
+        description: The sum of daily premiums for transactions classified as renewals.
+      - name: lapsed_premium
+        description: The sum of daily premiums for users who lapsed, attributed to their prior month.
+      - name: net_written_premium
+        description: The net premium calculated as new business premium plus renewal premium minus lapsed premium.
+      - name: lapse_to_new_business_ratio
+        description: The ratio of lapsed premium to new business premium, rounded to two decimal places.
+      - name: _created_at
+        description: The timestamp when the record was created.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['party', 'month']
