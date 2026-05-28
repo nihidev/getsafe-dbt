@@ -1,20 +1,26 @@
+-- Template: waterfall
+-- Grain: one row per (product_group, month)
+-- Slots: {{source_model}}
 {{ config(materialized='table', tags=['gold']) }}
 
 WITH user_monthly_premium AS (
     SELECT
         user_id,
         product_group,
-        TO_CHAR(DATE_TRUNC('month', activity_date), 'YYYY-MM')    AS month,
-        TO_CHAR(DATE_TRUNC('month', acquisition_date), 'YYYY-MM') AS acquisition_month,
-        SUM(daily_premium)                                        AS premium
+        DATE_TRUNC('month', activity_date)    AS month,
+        DATE_TRUNC('month', acquisition_date) AS acquisition_month,
+        SUM(daily_premium)                    AS premium
     FROM {{ ref('gold_fct_customer_activity_daily') }}
     GROUP BY
         user_id,
         product_group,
-        TO_CHAR(DATE_TRUNC('month', activity_date), 'YYYY-MM'),
-        TO_CHAR(DATE_TRUNC('month', acquisition_date), 'YYYY-MM')
+        DATE_TRUNC('month', activity_date),
+        DATE_TRUNC('month', acquisition_date)
 ),
 
+-- new_business = first calendar month active (= acquisition month)
+-- renewal      = active this month AND was active in exactly the prior calendar month
+-- reactivation = returned after a gap (not counted in new_business or renewal)
 classified AS (
     SELECT
         user_id,
@@ -25,7 +31,7 @@ classified AS (
             WHEN month = acquisition_month
             THEN 'new_business'
             WHEN LAG(month) OVER (PARTITION BY user_id, product_group ORDER BY month)
-                 = TO_CHAR(TO_DATE(month, 'YYYY-MM') - INTERVAL '1 month', 'YYYY-MM')
+                 = month - INTERVAL '1 month'
             THEN 'renewal'
             ELSE 'reactivation'
         END AS transaction_type
@@ -42,30 +48,21 @@ active_premiums AS (
     GROUP BY product_group, month
 ),
 
-lapsed_user_list AS (
+-- Lapsed: active in month N-1, absent in month N
+-- Attribution → month N (the month they failed to renew), premium sourced from month N-1
+-- Join on user_id to avoid NULL-side column reuse
+lapsed AS (
     SELECT
-        prev.user_id,
         prev.product_group,
-        prev.month AS last_active_month
+        prev.month + INTERVAL '1 month' AS month,
+        SUM(prev.premium)               AS lapsed_premium
     FROM user_monthly_premium prev
     LEFT JOIN user_monthly_premium curr
         ON  prev.user_id       = curr.user_id
         AND prev.product_group = curr.product_group
-        AND curr.month         = TO_CHAR(TO_DATE(prev.month, 'YYYY-MM') + INTERVAL '1 month', 'YYYY-MM')
+        AND curr.month         = prev.month + INTERVAL '1 month'
     WHERE curr.user_id IS NULL
-),
-
-lapsed AS (
-    SELECT
-        lul.product_group,
-        TO_CHAR(TO_DATE(lul.last_active_month, 'YYYY-MM') + INTERVAL '1 month', 'YYYY-MM') AS month,
-        SUM(prev.premium) AS lapsed_premium
-    FROM lapsed_user_list lul
-    JOIN user_monthly_premium prev
-        ON  lul.user_id = prev.user_id
-        AND lul.product_group = prev.product_group
-        AND lul.last_active_month = prev.month
-    GROUP BY lul.product_group, TO_CHAR(TO_DATE(lul.last_active_month, 'YYYY-MM') + INTERVAL '1 month', 'YYYY-MM')
+    GROUP BY prev.product_group, prev.month + INTERVAL '1 month'
 )
 
 SELECT
