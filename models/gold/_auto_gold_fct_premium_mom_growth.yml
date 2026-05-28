@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: gold_fct_premium_mom_growth
+  description: >
+    This model calculates the month-over-month growth in written premiums for each party, 
+    identifies the largest decline in any single month, and tracks the cumulative written 
+    premium per party over time. It is built from the 'gold_fct_monthly_premiums' model 
+    using the LAG() window function to compare current and previous month premiums.
+
+  columns:
+    - name: party
+      description: The identifier for the party whose premiums are being analyzed.
+      tests:
+        - not_null
+
+    - name: month
+      description: The month for which the premium data is recorded.
+      tests:
+        - not_null
+
+    - name: previous_written_premium
+      description: The written premium amount for the previous month for the same party.
+
+    - name: written_premium
+      description: The written premium amount for the current month for the same party.
+      tests:
+        - not_null
+
+    - name: percentage_change
+      description: >
+        The percentage change in written premium from the previous month to the current month 
+        for the same party. Calculated as ((current - previous) / previous) * 100.
+
+    - name: cumulative_written_premium
+      description: >
+        The cumulative sum of written premiums for each party from the start of the analysis 
+        period up to and including the current month.
+
+    - name: _created_at
+      description: The timestamp when the record was created.
+
+  tests:
+    - dbt_utils.unique_combination_of_columns:
+        arguments:
+          combination_of_columns: ['party', 'month']
