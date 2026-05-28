@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: gold_fct_party_risk_scorecard
+    description: >
+      This model calculates a risk scorecard for each party on a monthly basis by integrating data from premium growth, accounting reconciliation, and customer activity. It provides insights into risk levels, premium growth, and customer efficiency.
+    columns:
+      - name: party
+        description: The unique identifier for each party, sourced from gold_fct_premium_mom_growth.
+        tests:
+          - not_null
+      - name: month
+        description: The month of the data in text format (YYYY-MM), sourced from gold_fct_premium_mom_growth.
+        tests:
+          - not_null
+      - name: written_premium
+        description: The total written premium for the party in the given month, sourced from gold_fct_premium_mom_growth.
+      - name: mom_growth_pct
+        description: The month-over-month growth percentage of the written premium, sourced from gold_fct_premium_mom_growth.
+      - name: rolling_3m_avg_premium
+        description: The average written premium over the current and previous two months.
+      - name: rolling_3m_growth
+        description: The growth of the current written premium compared to the rolling average three months ago.
+      - name: reconciliation_status
+        description: The status of the accounting reconciliation for the party, sourced from gold_fct_accounting_reconciliation.
+      - name: delta_pct
+        description: The absolute gap as a percentage of accounting premium, sourced from gold_fct_accounting_reconciliation.
+      - name: prev_delta_pct
+        description: The delta percentage from the previous month.
+      - name: gap_trend
+        description: The trend of the gap, indicating whether it is widening, improving, or stable.
+      - name: active_customers
+        description: The count of distinct active customers aggregated to the month total, sourced from gold_fct_customer_activity_daily.
+      - name: premium_per_customer
+        description: The average premium per active customer, calculated as written_premium divided by active_customers.
+      - name: prev_premium_per_customer
+        description: The premium per customer from the previous month.
+      - name: premium_per_customer_trend
+        description: The percentage change in premium per customer compared to the previous month.
+      - name: composite_risk_score
+        description: A composite score indicating the risk level, calculated from mom_growth_pct, delta_pct, and premium_per_customer_trend.
+      - name: risk_tier
+        description: The risk tier classification based on the composite risk score, with values 'GREEN', 'AMBER', or 'RED'.
+        tests:
+          - accepted_values:
+              values: ['GREEN', 'AMBER', 'RED']
+      - name: consecutive_red_months
+        description: The running count of consecutive months where the risk tier is 'RED'.
+      - name: _created_at
+        description: The timestamp when the record was created.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ['party', 'month']
