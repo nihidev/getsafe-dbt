@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: gold_fct_customer_cohorts
+    description: >
+      This model analyzes customer cohorts based on their acquisition and activity months. 
+      It calculates retention rates and average cumulative premiums per customer, identifying 
+      cohorts with the steepest drop-off in retention and the highest average cumulative premium 
+      by month 6 of their lifecycle.
+    columns:
+      - name: acquisition_year
+        description: The year when the customer was acquired.
+        tests:
+          - not_null
+      - name: acquisition_month
+        description: The month when the customer was acquired.
+        tests:
+          - not_null
+      - name: activity_year
+        description: The year of the customer's activity.
+        tests:
+          - not_null
+      - name: activity_month
+        description: The month of the customer's activity.
+        tests:
+          - not_null
+      - name: retention_rate
+        description: The percentage of customers still active compared to the initial cohort size.
+      - name: avg_cumulative_premium_per_customer
+        description: The average cumulative premium per customer for the cohort.
+      - name: steepest_drop_off_cohort
+        description: Indicates if the cohort experienced the steepest drop-off in retention.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Steepest Drop-off', null]
+      - name: highest_avg_cumulative_premium_cohort
+        description: Indicates if the cohort generated the highest average cumulative premium.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Highest Avg Cumulative Premium', null]
+      - name: _created_at
+        description: The timestamp when the record was created.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['acquisition_year', 'acquisition_month', 'activity_year', 'activity_month']
