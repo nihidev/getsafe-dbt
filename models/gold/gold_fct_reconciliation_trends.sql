@@ -1,3 +1,10 @@
+-- Template: reconciliation_trends
+-- Grain: one row per (party, month)
+-- Slots: {{source_model}}
+-- consecutive_widening uses gaps-and-islands:
+--   island_grp counts FALSE rows in all PRECEDING rows (1 PRECEDING excludes current),
+--   so each FALSE row falls into the prior TRUE island — keeping the next TRUE run in a new group.
+--   ROW_NUMBER within (party, island_grp) then gives the consecutive count; CASE returns 0 for FALSE rows.
 {{ config(materialized='table', tags=['gold']) }}
 
 WITH base AS (
@@ -9,9 +16,9 @@ WITH base AS (
         reconciliation_status,
         finance_premium - accounting_premium                                        AS delta,
         ROUND(
-            CAST(ABS(finance_premium - accounting_premium) AS numeric)
-            / NULLIF(accounting_premium, 0) * 100::numeric, 2
-        )                                                                          AS gap_pct
+            (ABS(finance_premium - accounting_premium)
+            / NULLIF(accounting_premium, 0) * 100)::numeric, 2
+        )                                                                           AS gap_pct
     FROM {{ ref('gold_fct_accounting_reconciliation') }}
 ),
 
@@ -42,7 +49,7 @@ SELECT
     accounting_premium,
     delta,
     previous_delta,
-    ROUND((delta - previous_delta)::numeric, 2)                                    AS delta_change,
+    ROUND(((delta - previous_delta))::numeric, 2)                                  AS delta_change,
     is_widening,
     CASE
         WHEN is_widening
