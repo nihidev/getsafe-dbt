@@ -36,13 +36,13 @@ models:
         description: The change in delta from the previous month to the current month.
 
       - name: is_widening
-        description: A boolean indicating if the absolute delta has increased compared to the previous month.
+        description: A boolean indicating if the absolute value of delta has increased compared to the previous month.
 
       - name: consecutive_widening
         description: The count of consecutive months where the gap has widened, using a gaps-and-islands pattern.
 
       - name: gap_pct
-        description: The percentage representation of the absolute delta relative to the accounting_premium.
+        description: The percentage representation of the absolute delta relative to the accounting premium.
 
       - name: gap_band
         description: The categorization of gap_pct into bands: '<1%', '1–5%', '>5%'.
