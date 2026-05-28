@@ -3,37 +3,53 @@ version: 2
 models:
   - name: gold_fct_executive_kpi
     description: >
-      This model aggregates key performance indicators for executives, providing insights into party performance on a monthly basis. It combines data from various sources to calculate metrics such as written premium, churn rate, and composite score, which are essential for executive decision-making.
+      This model aggregates key performance indicators for executive-level reporting. 
+      It combines data from various sources to provide insights into party performance 
+      on a monthly basis, including metrics such as written premium, growth percentage, 
+      churn rate, and reconciliation status. The model also calculates a composite score 
+      to rank parties based on their overall performance.
+
     columns:
       - name: party
         description: The identifier for the party, sourced from gold_fct_premium_mom_growth.
         tests:
           - not_null
+
       - name: month
-        description: The month of the data, serving as a join key across sources.
+        description: The month of the record, used as a join key across sources.
         tests:
           - not_null
+
       - name: written_premium
         description: The total written premium for the party in the given month, sourced from gold_fct_premium_mom_growth.
+
       - name: mom_growth_pct
         description: The month-over-month growth percentage of the written premium, sourced from gold_fct_premium_mom_growth.
+
       - name: active_customers
         description: The count of distinct active customers for the party in the given month, aggregated from gold_fct_customer_activity_daily.
+
       - name: premium_per_active_customer
         description: The average premium per active customer, calculated as written_premium divided by active_customers.
+
       - name: churn_rate
         description: The churn rate for the party in the given month, aggregated from gold_fct_churn_monthly.
+
       - name: reconciliation_status
         description: The reconciliation status for the party in the given month, sourced from gold_fct_accounting_reconciliation.
         tests:
           - accepted_values:
               arguments:
                 values: ['MATCH', 'DISCREPANCY']
+
       - name: composite_score
         description: >
-          A composite score calculated based on mom_growth_pct, churn_rate, and reconciliation_status. It provides a performance metric for the party.
+          A calculated score representing the overall performance of the party, 
+          based on growth percentage, churn rate, and reconciliation status.
+
       - name: _created_at
         description: The timestamp when the record was created.
+
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
