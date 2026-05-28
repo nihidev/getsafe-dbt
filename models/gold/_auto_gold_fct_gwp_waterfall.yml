@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: gold_fct_gwp_waterfall
+    description: >
+      This model aggregates customer activity data to calculate monthly premiums and transaction classifications per party. It provides insights into new business, renewal, and lapsed premiums, as well as net written premiums and lapse-to-new-business ratios.
+
+    columns:
+      - name: party
+        description: The unique identifier for each party, sourced from the gold_fct_monthly_premiums table.
+        tests:
+          - not_null
+
+      - name: month
+        description: The month of the activity, truncated to the first day of the month.
+        tests:
+          - not_null
+
+      - name: new_business_premium
+        description: The total premium for new business transactions within the month.
+        tests:
+          - not_null
+
+      - name: renewal_premium
+        description: The total premium for renewal transactions within the month.
+        tests:
+          - not_null
+
+      - name: lapsed_premium
+        description: The total premium for users who lapsed in the prior month.
+        tests:
+          - not_null
+
+      - name: net_written_premium
+        description: The net premium calculated as new_business_premium plus renewal_premium minus lapsed_premium.
+        tests:
+          - not_null
+
+      - name: lapse_to_new_business_ratio
+        description: The ratio of lapsed premium to new business premium, rounded to two decimal places.
+        tests:
+          - not_null
+
+      - name: _created_at
+        description: The timestamp when the record was created.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['party', 'month']
