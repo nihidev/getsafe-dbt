@@ -1,10 +1,3 @@
--- Template: reconciliation_trends
--- Grain: one row per (party, month)
--- Slots: {{source_model}}
--- consecutive_widening uses gaps-and-islands:
---   island_grp counts FALSE rows in all PRECEDING rows (1 PRECEDING excludes current),
---   so each FALSE row falls into the prior TRUE island — keeping the next TRUE run in a new group.
---   ROW_NUMBER within (party, island_grp) then gives the consecutive count; CASE returns 0 for FALSE rows.
 {{ config(materialized='table', tags=['gold']) }}
 
 WITH base AS (
