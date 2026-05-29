@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: gold_fct_customer_ltv
+    description: |
+      This model calculates the lifetime value (LTV) of customers based on their activity and premium data. The grain is one row per user_id, sourced from the gold_fct_customer_activity_daily table.
+    columns:
+      - name: user_id
+        description: Unique identifier for each user.
+        tests:
+          - not_null
+      - name: product_group
+        description: The category or group of products associated with the user.
+        tests:
+          - not_null
+      - name: cohort_month
+        description: The month when the user was first acquired, truncated to the start of the month.
+      - name: last_active_month
+        description: The most recent month the user was active, truncated to the start of the month.
+      - name: active_months
+        description: The count of distinct months the user was active.
+      - name: lifetime_premium
+        description: The total premium accumulated by the user over their lifetime.
+      - name: avg_monthly_premium
+        description: The average premium per active month, rounded to two decimal places.
+      - name: decile
+        description: The decile rank of the user based on their lifetime premium, with 1 being the highest.
+      - name: ltv_bucket
+        description: The lifetime premium bucket categorizing users into ranges.
+        tests:
+          - accepted_values:
+              values: ['0-50 EUR', '50-200 EUR', '200-500 EUR', '500+ EUR']
+      - name: _created_at
+        description: The timestamp when the record was created.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ['user_id', 'product_group']
