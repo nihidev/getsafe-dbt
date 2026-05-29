@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: gold_fct_churn_monthly
+    description: >
+      This model calculates monthly churn metrics at the grain of one row per product_group and month.
+      It identifies active, churned, and new customers, along with churn rates and premium metrics.
+    columns:
+      - name: product_group
+        description: The group of products the user is associated with, sourced from the input data.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['product_group_1', 'product_group_2', 'product_group_3']
+      - name: month
+        description: The month for which the metrics are calculated, truncated to the first day of the month.
+        tests:
+          - not_null
+      - name: active_start
+        description: The number of active customers at the start of the month, equivalent to active_end from the prior month.
+      - name: active_end
+        description: The count of distinct users active in the current month.
+      - name: churned_customers
+        description: The number of users who were active in the previous month but not in the current month.
+      - name: new_customers
+        description: The number of users whose acquisition date falls within the current month.
+      - name: churn_rate
+        description: The percentage of customers who churned, calculated as churned_customers divided by active_start.
+      - name: churned_premium
+        description: The total premium value for users who churned, calculated for their last active month.
+      - name: avg_premium_per_churned_customer
+        description: The average premium per churned customer, calculated as churned_premium divided by churned_customers.
+      - name: _created_at
+        description: The timestamp when the record was created.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ['product_group', 'month']
