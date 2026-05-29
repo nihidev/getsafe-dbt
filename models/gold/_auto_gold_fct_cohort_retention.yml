@@ -3,33 +3,30 @@ version: 2
 models:
   - name: gold_fct_cohort_retention
     description: >
-      This model calculates the retention rate of customer cohorts over time. 
-      It is built from the source model 'gold_fct_customer_activity_daily' and 
-      provides insights into customer retention by cohort month, product group, 
-      and months since acquisition.
+      This model calculates the retention rate of customer cohorts over time, based on their monthly activity. It provides insights into customer retention by cohort month, product group, and months since acquisition.
     columns:
       - name: cohort_month
-        description: "The month when a customer first joined, truncated to the start of the month."
+        description: The month when the customer cohort was acquired, truncated to the first day of the month.
         tests:
           - not_null
       - name: product_group
-        description: "The category or group of products associated with the customer activity."
+        description: The category or group of products that the customer is associated with.
         tests:
           - not_null
       - name: months_since_acquisition
-        description: "The number of months elapsed since the cohort month."
+        description: The number of months that have passed since the cohort month.
         tests:
           - not_null
       - name: cohort_size
-        description: "The number of distinct users in the cohort during the cohort month."
+        description: The number of unique customers in the cohort during the cohort month.
         tests:
           - not_null
       - name: active_customers
-        description: "The number of distinct users still active in a given activity month."
+        description: The number of unique customers still active in a given activity month.
         tests:
           - not_null
       - name: retention_rate
-        description: "The percentage of active customers relative to the cohort size, rounded to one decimal place."
+        description: The percentage of the cohort that remains active in a given activity month, rounded to one decimal place.
         tests:
           - not_null
     tests:
